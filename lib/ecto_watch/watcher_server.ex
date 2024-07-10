@@ -39,14 +39,17 @@ defmodule EctoWatch.WatcherServer do
   end
 
   def init({repo_mod, pub_sub_mod, watcher_options}) do
+    schema_mod = watcher_options.schema_mod
+
     schema_name =
-      case watcher_options.schema_mod.__schema__(:prefix) do
+      case schema_mod.__schema__(:prefix) do
         nil -> "public"
         prefix -> prefix
       end
 
     table_name = "#{watcher_options.schema_mod.__schema__(:source)}"
     unique_label = "#{unique_label(watcher_options)}"
+    extra_columns = watcher_options.opts[:extra_columns] || []
 
     update_keyword =
       case watcher_options.update_type do
@@ -66,8 +69,8 @@ defmodule EctoWatch.WatcherServer do
           "DELETE"
       end
 
-    extra_columns_sql =
-      (watcher_options.opts[:extra_columns] || [])
+    columns_sql =
+      Enum.uniq(schema_mod.__schema__(:primary_key) ++ extra_columns)
       |> Enum.map_join(",", &"'#{&1}',row.#{&1}")
 
     Ecto.Adapters.SQL.query!(
@@ -80,7 +83,7 @@ defmodule EctoWatch.WatcherServer do
           payload TEXT;
         BEGIN
           row := COALESCE(NEW, OLD);
-          payload := jsonb_build_object('type','#{watcher_options.update_type}','id',row.id,'extra',json_build_object(#{extra_columns_sql}));
+          payload := jsonb_build_object('type','#{watcher_options.update_type}','columns',json_build_object(#{columns_sql}));
           PERFORM pg_notify('#{unique_label}', payload);
 
           RETURN NEW;
@@ -117,9 +120,18 @@ defmodule EctoWatch.WatcherServer do
       raise "Expected to receive message from #{state.unique_label}, but received from #{channel_name}"
     end
 
-    %{"type" => type, "id" => id, "extra" => extra} = Jason.decode!(payload)
+    primary_key = state.schema_mod.__schema__(:primary_key)
 
-    extra = Map.new(extra, fn {k, v} -> {String.to_existing_atom(k), v} end)
+    %{"type" => type, "columns" => columns} = Jason.decode!(payload)
+
+    columns = Map.new(columns, fn {k, v} -> {String.to_existing_atom(k), v} end)
+    {pk, extra} = Map.split(columns, primary_key)
+
+    id =
+      case primary_key do
+        [id_col] -> pk[id_col]
+        _ -> pk
+      end
 
     case type do
       "inserted" ->
