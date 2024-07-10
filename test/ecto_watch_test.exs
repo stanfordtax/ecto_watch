@@ -428,8 +428,8 @@ defmodule EctoWatchTest do
         []
       )
 
-      assert_receive {:inserted, Thing, _, %{}}
-      assert_receive {:inserted, PrefixedThing, _, %{}}
+      assert_receive {:inserted, Thing, %{id: _}}
+      assert_receive {:inserted, PrefixedThing, %{id: _}}
     end
 
     test "no notification without subscribe" do
@@ -478,9 +478,9 @@ defmodule EctoWatchTest do
 
       Ecto.Adapters.SQL.query!(TestRepo, "UPDATE things SET the_string = 'the new value'", [])
 
-      assert_receive {:updated, Thing, already_existing_id1, %{}}
+      assert_receive {:updated, Thing, %{id: already_existing_id1}}
 
-      assert_receive {:updated, Thing, already_existing_id2, %{}}
+      assert_receive {:updated, Thing, %{id: already_existing_id2}}
     end
 
     test "updates for an id", %{
@@ -496,13 +496,13 @@ defmodule EctoWatchTest do
          ]}
       )
 
-      EctoWatch.subscribe(Thing, :updated, already_existing_id1)
+      EctoWatch.subscribe(Thing, :updated, %{id: already_existing_id1})
 
       Ecto.Adapters.SQL.query!(TestRepo, "UPDATE things SET the_string = 'the new value'", [])
 
-      assert_receive {:updated, Thing, already_existing_id1, %{}}
+      assert_receive {:updated, Thing, %{id: already_existing_id1}}
 
-      refute_receive {:updated, Thing, already_existing_id2, %{}}
+      refute_receive {:updated, Thing, %{id: already_existing_id2}}
     end
 
     test "trigger_columns option", %{
@@ -519,22 +519,22 @@ defmodule EctoWatchTest do
          ]}
       )
 
-      EctoWatch.subscribe(:thing_custom_event, :updated, already_existing_id1)
+      EctoWatch.subscribe(:thing_custom_event, :updated, %{id: already_existing_id1})
 
       Ecto.Adapters.SQL.query!(TestRepo, "UPDATE things SET the_string = 'the new value'", [])
 
-      refute_receive {:updated, _, already_existing_id1, %{}}
-      refute_receive {:updated, _, already_existing_id2, %{}}
+      refute_receive {:updated, _, %{id: already_existing_id1}}
+      refute_receive {:updated, _, %{id: already_existing_id2}}
 
       Ecto.Adapters.SQL.query!(TestRepo, "UPDATE things SET the_integer = 9999", [])
 
-      assert_receive {:updated, :thing_custom_event, already_existing_id1, %{}}
-      refute_receive {:updated, _, already_existing_id2, %{}}
+      assert_receive {:updated, :thing_custom_event, %{id: already_existing_id1}}
+      refute_receive {:updated, _, %{id: already_existing_id2}}
 
       Ecto.Adapters.SQL.query!(TestRepo, "UPDATE things SET the_float = 99.999", [])
 
-      assert_receive {:updated, :thing_custom_event, already_existing_id1, %{}}
-      refute_receive {:updated, _, already_existing_id2, %{}}
+      assert_receive {:updated, :thing_custom_event, %{id: already_existing_id1}}
+      refute_receive {:updated, _, %{id: already_existing_id2}}
     end
 
     test "extra_columns option", %{
@@ -550,7 +550,7 @@ defmodule EctoWatchTest do
          ]}
       )
 
-      EctoWatch.subscribe(Thing, :updated, already_existing_id1)
+      EctoWatch.subscribe(Thing, :updated, %{id: already_existing_id1})
 
       Ecto.Adapters.SQL.query!(
         TestRepo,
@@ -558,28 +558,28 @@ defmodule EctoWatchTest do
         [already_existing_id1]
       )
 
-      assert_receive {:updated, Thing, already_existing_id1,
-                      %{the_integer: 4455, the_float: 84.52}}
+      assert_receive {:updated, Thing,
+                      %{id: already_existing_id1, the_integer: 4455, the_float: 84.52}}
 
-      refute_receive {:updated, _, already_existing_id2, %{}}
+      refute_receive {:updated, _, %{id: already_existing_id2}}
 
       Ecto.Adapters.SQL.query!(TestRepo, "UPDATE things SET the_integer = 9999 WHERE id = $1", [
         already_existing_id1
       ])
 
-      assert_receive {:updated, Thing, already_existing_id1,
-                      %{the_integer: 9999, the_float: 84.52}}
+      assert_receive {:updated, Thing,
+                      %{id: already_existing_id1, the_integer: 9999, the_float: 84.52}}
 
-      refute_receive {:updated, _, already_existing_id2, %{}}
+      refute_receive {:updated, _, %{id: already_existing_id2}}
 
       Ecto.Adapters.SQL.query!(TestRepo, "UPDATE things SET the_float = 99.999 WHERE id = $1", [
         already_existing_id1
       ])
 
-      assert_receive {:updated, Thing, already_existing_id1,
-                      %{the_integer: 9999, the_float: 99.999}}
+      assert_receive {:updated, Thing,
+                      %{id: already_existing_id1, the_integer: 9999, the_float: 99.999}}
 
-      refute_receive {:updated, _, already_existing_id2, %{}}
+      refute_receive {:updated, _, %{id: already_existing_id2}}
     end
 
     test "no notifications without subscribe", %{
@@ -588,9 +588,9 @@ defmodule EctoWatchTest do
     } do
       Ecto.Adapters.SQL.query!(TestRepo, "UPDATE things SET the_string = 'the new value'", [])
 
-      refute_receive {:updated, Thing, already_existing_id1, %{}}
+      refute_receive {:updated, Thing, %{id: already_existing_id1}}
 
-      refute_receive {:updated, Thing, already_existing_id2, %{}}
+      refute_receive {:updated, Thing, %{id: already_existing_id2}}
     end
   end
 
@@ -612,9 +612,9 @@ defmodule EctoWatchTest do
 
       Ecto.Adapters.SQL.query!(TestRepo, "DELETE FROM things", [])
 
-      assert_receive {:deleted, Thing, already_existing_id1, %{}}
+      assert_receive {:deleted, Thing, %{id: already_existing_id1}}
 
-      assert_receive {:deleted, Thing, already_existing_id2, %{}}
+      assert_receive {:deleted, Thing, %{id: already_existing_id2}}
     end
 
     test "deletes for an id", %{
@@ -630,13 +630,13 @@ defmodule EctoWatchTest do
          ]}
       )
 
-      EctoWatch.subscribe(Thing, :deleted, already_existing_id1)
+      EctoWatch.subscribe(Thing, :deleted, %{id: already_existing_id1})
 
       Ecto.Adapters.SQL.query!(TestRepo, "DELETE FROM things", [])
 
-      assert_receive {:deleted, Thing, already_existing_id1, %{}}
+      assert_receive {:deleted, Thing, %{id: already_existing_id1}}
 
-      refute_receive {:deleted, Thing, already_existing_id2, %{}}
+      refute_receive {:deleted, Thing, %{id: already_existing_id2}}
     end
 
     test "no notifications without subscribe", %{
@@ -645,9 +645,9 @@ defmodule EctoWatchTest do
     } do
       Ecto.Adapters.SQL.query!(TestRepo, "DELETE FROM things", [])
 
-      refute_receive {:deleted, Thing, already_existing_id1, %{}}
+      refute_receive {:deleted, Thing, %{id: already_existing_id1}}
 
-      refute_receive {:deleted, Thing, already_existing_id2, %{}}
+      refute_receive {:deleted, Thing, %{id: already_existing_id2}}
     end
   end
 end

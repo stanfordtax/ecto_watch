@@ -22,15 +22,20 @@ defmodule EctoWatch.WatcherServer do
   end
 
   def handle_call(
-        {:pub_sub_subscription_details, schema_mod_or_label, update_type, id},
+        {:pub_sub_subscription_details, schema_mod_or_label, update_type, pk},
         _from,
         state
       ) do
     unique_label = unique_label(schema_mod_or_label, update_type)
 
     channel_name =
-      if id do
-        "#{unique_label}:#{id}"
+      if pk do
+        ordered_values =
+          pk
+          |> Enum.sort_by(fn {k, _v} -> k end)
+          |> Enum.map(fn {_k, v} -> v end)
+
+        Enum.join([state.unique_label | ordered_values], ":")
       else
         "#{unique_label}"
       end
@@ -125,46 +130,42 @@ defmodule EctoWatch.WatcherServer do
     %{"type" => type, "columns" => columns} = Jason.decode!(payload)
 
     columns = Map.new(columns, fn {k, v} -> {String.to_existing_atom(k), v} end)
-    {pk, extra} = Map.split(columns, primary_key)
 
-    id =
-      case primary_key do
-        [id_col] -> pk[id_col]
-        _ -> pk
-      end
+    specific_topic =
+      Enum.join([state.unique_label | Enum.sort(Enum.map(primary_key, &columns[&1]))], ":")
 
     case type do
       "inserted" ->
         Phoenix.PubSub.broadcast(
           state.pub_sub_mod,
           state.unique_label,
-          {:inserted, state.schema_mod_or_label, id, extra}
+          {:inserted, state.schema_mod_or_label, columns}
         )
 
       "updated" ->
         Phoenix.PubSub.broadcast(
           state.pub_sub_mod,
-          "#{state.unique_label}:#{id}",
-          {:updated, state.schema_mod_or_label, id, extra}
+          specific_topic,
+          {:updated, state.schema_mod_or_label, columns}
         )
 
         Phoenix.PubSub.broadcast(
           state.pub_sub_mod,
           state.unique_label,
-          {:updated, state.schema_mod_or_label, id, extra}
+          {:updated, state.schema_mod_or_label, columns}
         )
 
       "deleted" ->
         Phoenix.PubSub.broadcast(
           state.pub_sub_mod,
-          "#{state.unique_label}:#{id}",
-          {:deleted, state.schema_mod_or_label, id, extra}
+          specific_topic,
+          {:deleted, state.schema_mod_or_label, columns}
         )
 
         Phoenix.PubSub.broadcast(
           state.pub_sub_mod,
           state.unique_label,
-          {:deleted, state.schema_mod_or_label, id, extra}
+          {:deleted, state.schema_mod_or_label, columns}
         )
     end
 
