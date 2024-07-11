@@ -6,7 +6,7 @@ defmodule EctoWatch.WatcherServer do
   use GenServer
 
   def pub_sub_subscription_details(schema_mod_or_label, update_type, id) do
-    name = unique_label(schema_mod_or_label, update_type)
+    name = Helpers.unique_label(schema_mod_or_label, update_type)
 
     if Process.whereis(name) do
       {:ok,
@@ -18,7 +18,7 @@ defmodule EctoWatch.WatcherServer do
 
   def start_link({repo_mod, pub_sub_mod, watcher_options}) do
     GenServer.start_link(__MODULE__, {repo_mod, pub_sub_mod, watcher_options},
-      name: unique_label(watcher_options)
+      name: Helpers.unique_label(watcher_options)
     )
   end
 
@@ -27,7 +27,7 @@ defmodule EctoWatch.WatcherServer do
         _from,
         state
       ) do
-    unique_label = unique_label(schema_mod_or_label, update_type)
+    unique_label = Helpers.unique_label(schema_mod_or_label, update_type)
 
     channel_name =
       if pk do
@@ -45,34 +45,7 @@ defmodule EctoWatch.WatcherServer do
   end
 
   def init({repo_mod, pub_sub_mod, watcher_options}) do
-    schema_mod = watcher_options.schema_mod
-
-    schema_name =
-      case schema_mod.__schema__(:prefix) do
-        nil -> "public"
-        prefix -> prefix
-      end
-
-    table_name = "#{watcher_options.schema_mod.__schema__(:source)}"
-    unique_label = "#{unique_label(watcher_options)}"
-
-    update_keyword =
-      case watcher_options.update_type do
-        :inserted ->
-          "INSERT"
-
-        :updated ->
-          trigger_columns = watcher_options.trigger_columns
-
-          if trigger_columns do
-            "UPDATE OF #{Enum.join(trigger_columns, ", ")}"
-          else
-            "UPDATE"
-          end
-
-        :deleted ->
-          "DELETE"
-      end
+    unique_label = "#{Helpers.unique_label(watcher_options)}"
 
     Ecto.Adapters.SQL.query!(
       repo_mod,
@@ -82,11 +55,7 @@ defmodule EctoWatch.WatcherServer do
 
     Ecto.Adapters.SQL.query!(
       repo_mod,
-      """
-      CREATE OR REPLACE TRIGGER #{unique_label}_trigger
-        AFTER #{update_keyword} ON \"#{schema_name}\".\"#{table_name}\" FOR EACH ROW
-        EXECUTE PROCEDURE \"#{schema_name}\".#{unique_label}_func();
-      """,
+      WatcherSQL.create_or_replace_trigger(watcher_options),
       []
     )
 
@@ -155,22 +124,6 @@ defmodule EctoWatch.WatcherServer do
   end
 
   def name(%WatcherOptions{} = watcher_options) do
-    unique_label(watcher_options)
-  end
-
-  # To make things simple: generate a single string which is unique for each watcher
-  # that can be used as the watcher process name, trigger name, trigger function name,
-  # and Phoenix.PubSub channel name.
-  def unique_label(%WatcherOptions{} = watcher_options) do
-    unique_label(
-      watcher_options.label || watcher_options.schema_mod,
-      watcher_options.update_type
-    )
-  end
-
-  defp unique_label(schema_mod_or_label, update_type) do
-    label = Helpers.label(schema_mod_or_label)
-
-    :"ew_#{update_type}_for_#{label}"
+    Helpers.unique_label(watcher_options)
   end
 end
