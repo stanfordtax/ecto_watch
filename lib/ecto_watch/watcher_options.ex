@@ -1,5 +1,5 @@
 defmodule EctoWatch.WatcherOptions do
-  defstruct [:schema_mod, :update_type, :opts]
+  defstruct [:schema_mod, :update_type, :extra_columns, :label, :trigger_columns]
 
   def validate_list([]) do
     {:error, "requires at least one watcher"}
@@ -107,6 +107,6 @@ defmodule EctoWatch.WatcherOptions do
   end
 
   def new({schema_mod, update_type, opts}) do
-    %__MODULE__{schema_mod: schema_mod, update_type: update_type, opts: opts}
+    struct!(__MODULE__, [schema_mod: schema_mod, update_type: update_type] ++ opts)
   end
 end

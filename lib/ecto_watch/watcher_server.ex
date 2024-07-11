@@ -1,6 +1,7 @@
 defmodule EctoWatch.WatcherServer do
   alias EctoWatch.Helpers
   alias EctoWatch.WatcherOptions
+  alias EctoWatch.WatcherSQL
 
   use GenServer
 
@@ -54,7 +55,6 @@ defmodule EctoWatch.WatcherServer do
 
     table_name = "#{watcher_options.schema_mod.__schema__(:source)}"
     unique_label = "#{unique_label(watcher_options)}"
-    extra_columns = watcher_options.opts[:extra_columns] || []
 
     update_keyword =
       case watcher_options.update_type do
@@ -62,7 +62,7 @@ defmodule EctoWatch.WatcherServer do
           "INSERT"
 
         :updated ->
-          trigger_columns = watcher_options.opts[:trigger_columns]
+          trigger_columns = watcher_options.trigger_columns
 
           if trigger_columns do
             "UPDATE OF #{Enum.join(trigger_columns, ", ")}"
@@ -74,27 +74,9 @@ defmodule EctoWatch.WatcherServer do
           "DELETE"
       end
 
-    columns_sql =
-      Enum.uniq(schema_mod.__schema__(:primary_key) ++ extra_columns)
-      |> Enum.map_join(",", &"'#{&1}',row.#{&1}")
-
     Ecto.Adapters.SQL.query!(
       repo_mod,
-      """
-      CREATE OR REPLACE FUNCTION \"#{schema_name}\".#{unique_label}_func()
-        RETURNS trigger AS $trigger$
-        DECLARE
-          row record;
-          payload TEXT;
-        BEGIN
-          row := COALESCE(NEW, OLD);
-          payload := jsonb_build_object('type','#{watcher_options.update_type}','columns',json_build_object(#{columns_sql}));
-          PERFORM pg_notify('#{unique_label}', payload);
-
-          RETURN NEW;
-        END;
-        $trigger$ LANGUAGE plpgsql;
-      """,
+      WatcherSQL.create_or_replace_function(watcher_options),
       []
     )
 
@@ -116,7 +98,7 @@ defmodule EctoWatch.WatcherServer do
        pub_sub_mod: pub_sub_mod,
        unique_label: unique_label,
        schema_mod: watcher_options.schema_mod,
-       schema_mod_or_label: watcher_options.opts[:label] || watcher_options.schema_mod
+       schema_mod_or_label: watcher_options.label || watcher_options.schema_mod
      }}
   end
 
@@ -181,7 +163,7 @@ defmodule EctoWatch.WatcherServer do
   # and Phoenix.PubSub channel name.
   def unique_label(%WatcherOptions{} = watcher_options) do
     unique_label(
-      watcher_options.opts[:label] || watcher_options.schema_mod,
+      watcher_options.label || watcher_options.schema_mod,
       watcher_options.update_type
     )
   end
