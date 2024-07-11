@@ -15,7 +15,8 @@ defmodule EctoWatch.WatcherServer do
     if Process.whereis(name) do
       {:ok, GenServer.call(name, {:pub_sub_subscription_details, filter})}
     else
-      {:error, "No watcher found for #{inspect(schema_mod_or_label)} / #{inspect(update_type)}"}
+      {:error,
+       "No watcher found for #{inspect(schema_mod_or_label)} / #{inspect(update_type)}. Watcher name: #{name}"}
     end
   end
 
@@ -95,6 +96,12 @@ defmodule EctoWatch.WatcherServer do
 
     case type do
       "inserted" ->
+        Phoenix.PubSub.broadcast(
+          state.pub_sub_mod,
+          specific_topic,
+          {:inserted, label, columns}
+        )
+
         Phoenix.PubSub.broadcast(
           state.pub_sub_mod,
           state.pub_sub_topic,
