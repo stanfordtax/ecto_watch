@@ -1,13 +1,35 @@
 defmodule EctoWatch.WatcherOptions do
-  defstruct [:schema_mod, :update_type, :label, :trigger_columns, :return_columns]
+  @moduledoc """
+  The options for subscribing to a particular table.
+
+  ## Options
+    * `:schema_mod`: The schema module, for example `MyApp.User` to listen to changes for
+    * `:update_type`: The type of change to listen for
+    * `:label`: An optional label that defaults to the scheam module
+    * `:trigger_columns`: These columns, when changed, will trigger an event. Defaults to all of the columns.
+    * `:return_columns`: These columns will be returned as part of the payload. Defaults to the primary key.
+    * `:subscribe_columns`: If subscribing to a specific topic, these are the filter criteria that will be used. Defaults to the primary key.
+  """
+  defstruct [
+    :schema_mod,
+    :update_type,
+    :label,
+    :trigger_columns,
+    :return_columns,
+    :subscribe_columns
+  ]
 
   def new({schema_mod, update_type}) do
     new({schema_mod, update_type, []})
   end
 
   def new({schema_mod, update_type, opts}) do
-    opts = [schema_mod: schema_mod, update_type: update_type] ++ opts
-    opts = Keyword.put_new(opts, :label, schema_mod)
+    opts =
+      [schema_mod: schema_mod, update_type: update_type]
+      |> Keyword.merge(opts)
+      |> Keyword.put_new(:label, schema_mod)
+      |> Keyword.put_new(:subscribe_columns, schema_mod.__schema__(:primary_key))
+
     struct!(__MODULE__, opts)
   end
 
@@ -58,6 +80,10 @@ defmodule EctoWatch.WatcherOptions do
         required: false
       ],
       return_columns: [
+        type: {:custom, __MODULE__, :validate_columns, [schema_mod]},
+        required: false
+      ],
+      subscribe_columns: [
         type: {:custom, __MODULE__, :validate_columns, [schema_mod]},
         required: false
       ]

@@ -582,6 +582,40 @@ defmodule EctoWatchTest do
       refute_receive {:updated, _, %{id: already_existing_id2}}
     end
 
+    test "updates for a specific property", %{
+      already_existing_id1: already_existing_id1,
+      already_existing_id2: already_existing_id2
+    } do
+      start_supervised!(
+        {EctoWatch,
+         repo: TestRepo,
+         pub_sub: TestPubSub,
+         watchers: [
+           {Thing, :updated,
+            return_columns: [:id, :the_string, :the_integer], subscribe_columns: [:the_string]}
+         ]}
+      )
+
+      Ecto.Adapters.SQL.query!(
+        TestRepo,
+        "UPDATE things SET the_string = 'some_namespace' where id = $1",
+        [already_existing_id1]
+      )
+
+      EctoWatch.subscribe(Thing, :updated, %{the_string: "some_namespace"})
+
+      Ecto.Adapters.SQL.query!(
+        TestRepo,
+        "UPDATE things SET the_integer = 999 where id = $1",
+        [already_existing_id1]
+      )
+
+      assert_receive {:updated, Thing,
+                      %{id: already_existing_id1, the_string: "some_namespace", the_integer: 999}}
+
+      refute_receive {:updated, Thing, %{id: already_existing_id2}}
+    end
+
     test "no notifications without subscribe", %{
       already_existing_id1: already_existing_id1,
       already_existing_id2: already_existing_id2

@@ -8,12 +8,12 @@ defmodule EctoWatch.WatcherServer do
 
   defstruct [:repo_mod, :pub_sub_mod, :pub_sub_topic, :watcher_options]
 
-  def pub_sub_subscription_details(schema_mod_or_label, update_type, id) do
+  # Returns the relevant pub sub module and topic for a given subscription
+  def pub_sub_subscription_details(schema_mod_or_label, update_type, filter) do
     name = Helpers.unique_label(schema_mod_or_label, update_type)
 
     if Process.whereis(name) do
-      {:ok,
-       GenServer.call(name, {:pub_sub_subscription_details, schema_mod_or_label, update_type, id})}
+      {:ok, GenServer.call(name, {:pub_sub_subscription_details, filter})}
     else
       {:error, "No watcher found for #{inspect(schema_mod_or_label)} / #{inspect(update_type)}"}
     end
@@ -51,35 +51,28 @@ defmodule EctoWatch.WatcherServer do
       Postgrex.Notifications.listen(notifications_pid, "#{Helpers.unique_label(watcher_options)}")
 
     {:ok, server}
-    # {:ok,
-    #  %{
-    #    pub_sub_mod: pub_sub_mod,
-    #    unique_label: unique_label,
-    #    schema_mod: watcher_options.schema_mod,
-    #    schema_mod_or_label: watcher_options.label || watcher_options.schema_mod
-    #  }}
   end
 
   def handle_call(
-        {:pub_sub_subscription_details, schema_mod_or_label, update_type, pk},
+        {:pub_sub_subscription_details, filter},
         _from,
         %State{watcher_options: watcher_options} = state
       ) do
-    unique_label = Helpers.unique_label(schema_mod_or_label, update_type)
+    unique_label = Helpers.unique_label(watcher_options)
 
-    channel_name =
-      if pk do
+    topic =
+      if filter do
         ordered_values =
-          pk
+          filter
           |> Enum.sort_by(fn {k, _v} -> k end)
           |> Enum.map(fn {_k, v} -> v end)
 
-        Enum.join(["#{Helpers.unique_label(watcher_options)}" | ordered_values], ":")
+        Enum.join(["#{unique_label}" | ordered_values], ":")
       else
         "#{unique_label}"
       end
 
-    {:reply, {state.pub_sub_mod, channel_name}, state}
+    {:reply, {state.pub_sub_mod, topic}, state}
   end
 
   def handle_info(
@@ -90,7 +83,7 @@ defmodule EctoWatch.WatcherServer do
       raise "Expected to receive message from #{inspect(pub_sub_topic)}, but received from #{inspect(channel_name)}"
     end
 
-    primary_key = watcher_options.schema_mod.__schema__(:primary_key)
+    subscribe_columns = watcher_options.subscribe_columns
     label = watcher_options.label
 
     %{"type" => type, "columns" => columns} = Jason.decode!(payload)
@@ -98,7 +91,7 @@ defmodule EctoWatch.WatcherServer do
     columns = Map.new(columns, fn {k, v} -> {String.to_existing_atom(k), v} end)
 
     specific_topic =
-      Enum.join([state.pub_sub_topic | Enum.sort(Enum.map(primary_key, &columns[&1]))], ":")
+      Enum.join([state.pub_sub_topic | Enum.map(subscribe_columns, &columns[&1])], ":")
 
     case type do
       "inserted" ->
