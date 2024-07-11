@@ -6,7 +6,9 @@ defmodule EctoWatch.WatcherOptions do
   end
 
   def new({schema_mod, update_type, opts}) do
-    struct!(__MODULE__, [schema_mod: schema_mod, update_type: update_type] ++ opts)
+    opts = [schema_mod: schema_mod, update_type: update_type] ++ opts
+    opts = Keyword.put_new(opts, :label, schema_mod)
+    struct!(__MODULE__, opts)
   end
 
   def validate_list([]) do
