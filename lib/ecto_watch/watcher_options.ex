@@ -1,5 +1,13 @@
 defmodule EctoWatch.WatcherOptions do
-  defstruct [:schema_mod, :update_type, :extra_columns, :label, :trigger_columns]
+  defstruct [:schema_mod, :update_type, :label, :trigger_columns, :return_columns]
+
+  def new({schema_mod, update_type}) do
+    new({schema_mod, update_type, []})
+  end
+
+  def new({schema_mod, update_type, opts}) do
+    struct!(__MODULE__, [schema_mod: schema_mod, update_type: update_type] ++ opts)
+  end
 
   def validate_list([]) do
     {:error, "requires at least one watcher"}
@@ -18,11 +26,11 @@ defmodule EctoWatch.WatcherOptions do
     {:error, "should be a list"}
   end
 
-  def validate({schema_mod, update_type}) do
+  defp validate({schema_mod, update_type}) do
     validate({schema_mod, update_type, []})
   end
 
-  def validate({schema_mod, update_type, opts}) do
+  defp validate({schema_mod, update_type, opts}) do
     opts =
       opts
       |> Keyword.put(:schema_mod, schema_mod)
@@ -47,7 +55,7 @@ defmodule EctoWatch.WatcherOptions do
            [opts[:label], schema_mod, update_type]},
         required: false
       ],
-      extra_columns: [
+      return_columns: [
         type: {:custom, __MODULE__, :validate_columns, [schema_mod]},
         required: false
       ]
@@ -58,7 +66,7 @@ defmodule EctoWatch.WatcherOptions do
     end
   end
 
-  def validate(other) do
+  defp validate(other) do
     {:error,
      "should be either `{schema_mod, update_type}` or `{schema_mod, update_type, opts}`.  Got: #{inspect(other)}"}
   end
@@ -100,13 +108,5 @@ defmodule EctoWatch.WatcherOptions do
       extra_fields ->
         {:error, "Invalid columns for #{inspect(schema_mod)}: #{inspect(extra_fields)}"}
     end
-  end
-
-  def new({schema_mod, update_type}) do
-    new({schema_mod, update_type, []})
-  end
-
-  def new({schema_mod, update_type, opts}) do
-    struct!(__MODULE__, [schema_mod: schema_mod, update_type: update_type] ++ opts)
   end
 end

@@ -22,28 +22,6 @@ defmodule EctoWatch.WatcherServer do
     )
   end
 
-  def handle_call(
-        {:pub_sub_subscription_details, schema_mod_or_label, update_type, pk},
-        _from,
-        state
-      ) do
-    unique_label = Helpers.unique_label(schema_mod_or_label, update_type)
-
-    channel_name =
-      if pk do
-        ordered_values =
-          pk
-          |> Enum.sort_by(fn {k, _v} -> k end)
-          |> Enum.map(fn {_k, v} -> v end)
-
-        Enum.join([state.unique_label | ordered_values], ":")
-      else
-        "#{unique_label}"
-      end
-
-    {:reply, {state.pub_sub_mod, channel_name}, state}
-  end
-
   def init({repo_mod, pub_sub_mod, watcher_options}) do
     unique_label = "#{Helpers.unique_label(watcher_options)}"
 
@@ -69,6 +47,28 @@ defmodule EctoWatch.WatcherServer do
        schema_mod: watcher_options.schema_mod,
        schema_mod_or_label: watcher_options.label || watcher_options.schema_mod
      }}
+  end
+
+  def handle_call(
+        {:pub_sub_subscription_details, schema_mod_or_label, update_type, pk},
+        _from,
+        state
+      ) do
+    unique_label = Helpers.unique_label(schema_mod_or_label, update_type)
+
+    channel_name =
+      if pk do
+        ordered_values =
+          pk
+          |> Enum.sort_by(fn {k, _v} -> k end)
+          |> Enum.map(fn {_k, v} -> v end)
+
+        Enum.join([state.unique_label | ordered_values], ":")
+      else
+        "#{unique_label}"
+      end
+
+    {:reply, {state.pub_sub_mod, channel_name}, state}
   end
 
   def handle_info({:notification, _pid, _ref, channel_name, payload}, state) do

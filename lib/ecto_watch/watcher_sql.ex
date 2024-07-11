@@ -6,7 +6,7 @@ defmodule EctoWatch.WatcherSQL do
         %WatcherOptions{
           schema_mod: schema_mod,
           update_type: update_type,
-          extra_columns: extra_columns
+          return_columns: return_columns
         } = watcher_options
       ) do
     schema_name =
@@ -16,11 +16,9 @@ defmodule EctoWatch.WatcherSQL do
       end
 
     unique_label = "#{Helpers.unique_label(watcher_options)}"
-    extra_columns = extra_columns || []
+    return_columns = return_columns || schema_mod.__schema__(:primary_key)
 
-    columns_sql =
-      Enum.uniq(schema_mod.__schema__(:primary_key) ++ extra_columns)
-      |> Enum.map_join(",", &"'#{&1}',row.#{&1}")
+    columns_sql = Enum.map_join(return_columns, ",", &"'#{&1}',row.#{&1}")
 
     """
     CREATE OR REPLACE FUNCTION \"#{schema_name}\".#{unique_label}_func()

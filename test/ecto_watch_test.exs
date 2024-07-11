@@ -288,13 +288,13 @@ defmodule EctoWatchTest do
                    end
 
       assert_raise ArgumentError,
-                   ~r/invalid value for :watchers option: invalid value for :extra_columns option: List must not be empty/,
+                   ~r/invalid value for :watchers option: invalid value for :return_columns option: List must not be empty/,
                    fn ->
                      EctoWatch.start_link(
                        repo: TestRepo,
                        pub_sub: TestPubSub,
                        watchers: [
-                         {Thing, :updated, label: :thing_custom_event, extra_columns: []}
+                         {Thing, :updated, label: :thing_custom_event, return_columns: []}
                        ]
                      )
                    end
@@ -321,7 +321,7 @@ defmodule EctoWatchTest do
                    end
 
       assert_raise ArgumentError,
-                   ~r/invalid value for :watchers option: invalid value for :extra_columns option: Invalid columns for EctoWatchTest.Thing: \[:not_a_column, :another_bad_column\]/,
+                   ~r/invalid value for :watchers option: invalid value for :return_columns option: Invalid columns for EctoWatchTest.Thing: \[:not_a_column, :another_bad_column\]/,
                    fn ->
                      EctoWatch.start_link(
                        repo: TestRepo,
@@ -329,7 +329,7 @@ defmodule EctoWatchTest do
                        watchers: [
                          {Thing, :updated,
                           label: :thing_custom_event,
-                          extra_columns: [
+                          return_columns: [
                             :the_string,
                             :not_a_column,
                             :the_float,
@@ -537,7 +537,7 @@ defmodule EctoWatchTest do
       refute_receive {:updated, _, %{id: already_existing_id2}}
     end
 
-    test "extra_columns option", %{
+    test "return_columns option", %{
       already_existing_id1: already_existing_id1,
       already_existing_id2: already_existing_id2
     } do
@@ -546,7 +546,7 @@ defmodule EctoWatchTest do
          repo: TestRepo,
          pub_sub: TestPubSub,
          watchers: [
-           {Thing, :updated, extra_columns: [:the_integer, :the_float]}
+           {Thing, :updated, return_columns: [:id, :the_integer, :the_float]}
          ]}
       )
 
