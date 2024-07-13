@@ -19,12 +19,10 @@ defmodule EctoWatch do
   end
 
   def check_update_args(update_type, id) do
+    # todo: validate what can be passed in for the subscribe filter
     case {update_type, id} do
-      {:inserted, nil} ->
-        :ok
-
       {:inserted, _} ->
-        {:error, "Cannot subscribe to id for inserted records"}
+        :ok
 
       {:updated, _} ->
         :ok
